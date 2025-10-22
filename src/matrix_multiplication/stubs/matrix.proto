@@ -1,0 +1,28 @@
+// Command to compile the proto file:
+// python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. matrix.proto
+
+syntax = "proto3";
+
+package matrix;
+
+service MatrixService {
+    // Method for frontend to send blocks of matrix A and matrix B
+    rpc Multiply (MatrixMultiplyRequest) returns (MatrixMultiplyResponse);
+}
+
+// Request for multiplying two matrices
+message MatrixMultiplyRequest {
+    repeated float matrix_a = 1; 
+    int32 rows_a = 2;           
+    int32 cols_a = 3;            
+    repeated float matrix_b = 4; 
+    int32 rows_b = 5;            
+    int32 cols_b = 6;         
+}
+
+// Response from the backend after multiplication
+message MatrixMultiplyResponse {
+    repeated float result = 1;  
+    int32 rows = 2;              
+    int32 cols = 3;             
+}
