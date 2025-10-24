@@ -13,17 +13,17 @@ service MatrixService {
 
 // Request for multiplying two matrices
 message MatrixMultiplyRequest {
-    repeated float matrix_a = 1; 
+    bytes matrix_a = 1; 
     int32 rows_a = 2;           
     int32 cols_a = 3;            
-    repeated float matrix_b = 4; 
+    bytes matrix_b = 4; 
     int32 rows_b = 5;            
     int32 cols_b = 6;         
 }
 
 // Response from the backend after multiplication
 message MatrixMultiplyResponse {
-    repeated float result = 1;  
+    bytes result = 1;  
     int32 rows = 2;              
     int32 cols = 3;             
 }

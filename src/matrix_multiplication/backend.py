@@ -1,4 +1,5 @@
 from concurrent import futures
+import time
 
 import grpc
 import numpy as np
@@ -7,25 +8,27 @@ import stubs.matrix_pb2 as matrix_pb2
 import stubs.matrix_pb2_grpc as matrix_pb2_grpc
 from mt_local import block_matrix_multiply
 
-MAX_MESSAGE_LENGTH = 200 * 1024 * 1024
+MAX_MESSAGE_LENGTH = 280 * 1024 * 1024
 
 class MatrixBackend(matrix_pb2_grpc.MatrixServiceServicer):
 
     def Multiply(self, request, context):
-        # Deserialize matrix blocks
-        matrix_a = np.array(request.matrix_a).reshape(request.rows_a, request.cols_a)
-        matrix_b = np.array(request.matrix_b).reshape(request.rows_b, request.cols_b)
+        # Reconstruct matrices from bytes
+        A = np.frombuffer(request.matrix_a, dtype=np.float64).reshape((request.rows_a, request.cols_a))
+        B = np.frombuffer(request.matrix_b, dtype=np.float64).reshape((request.rows_b, request.cols_b))
 
-        print(f"Received matrices for multiplication: A{matrix_a.shape} x B{matrix_b.shape}")
+        print(f"Received matrices for multiplication: A{A.shape} x B{B.shape}")
 
         # Perform matrix multiplication
-        result = block_matrix_multiply(matrix_a, matrix_b, block_size=256, num_cores=10)
+        time_start = time.perf_counter()
+        result = block_matrix_multiply(A, B, block_size=256, num_cores=10)
+        end_time = time.perf_counter()
         
-        print(f"Completed multiplication. Result shape: {result.shape}")
+        print(f"Done in {end_time - time_start:.4f} seconds. Result shape: {result.shape}")
         
         # Return the result as a flattened array
         return matrix_pb2.MatrixMultiplyResponse(
-            result=result.flatten().tolist(),
+            result=result.tobytes(),
             rows=result.shape[0],
             cols=result.shape[1]
         )

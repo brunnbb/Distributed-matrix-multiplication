@@ -26,10 +26,7 @@ if _version_not_supported:
 
 
 class MatrixServiceStub(object):
-    """Command to compile the proto file:
-    python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. matrix.proto
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -45,10 +42,7 @@ class MatrixServiceStub(object):
 
 
 class MatrixServiceServicer(object):
-    """Command to compile the proto file:
-    python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. matrix.proto
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def Multiply(self, request, context):
         """Method for frontend to send blocks of matrix A and matrix B
@@ -74,10 +68,7 @@ def add_MatrixServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class MatrixService(object):
-    """Command to compile the proto file:
-    python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. matrix.proto
-
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def Multiply(request,

@@ -7,7 +7,9 @@ import numpy as np
 import stubs.matrix_pb2 as matrix_pb2
 import stubs.matrix_pb2_grpc as matrix_pb2_grpc
 
-MAX_MESSAGE_LENGTH = 200 * 1024 * 1024
+from utils import read_matrix, save_matrix, benchmark, verify_matrix, truncate_matrix
+
+MAX_MESSAGE_LENGTH = 280 * 1024 * 1024
 
 class MatrixClient:
 
@@ -70,10 +72,10 @@ class MatrixClient:
                 
                 # Prepara a mensagem gRPC
                 request = matrix_pb2.MatrixMultiplyRequest(
-                    matrix_a=block_a.flatten().tolist(),
+                    matrix_a=block_a.tobytes(),
                     rows_a=block_a.shape[0],
                     cols_a=block_a.shape[1],
-                    matrix_b=matrix_b.flatten().tolist(),
+                    matrix_b=matrix_b.tobytes(),
                     rows_b=matrix_b.shape[0],
                     cols_b=matrix_b.shape[1]
                 )
@@ -89,7 +91,7 @@ class MatrixClient:
                 try:
                     response = future.result()
                     # Reconstrói o bloco de resultado em um array numpy
-                    result_block = np.array(response.result).reshape(response.rows, response.cols)
+                    result_block = np.frombuffer(response.result, dtype=np.float64).reshape((response.rows, response.cols))
                     results.append(result_block)
                 except grpc.RpcError as e:
                     print(f"Erro gRPC em uma chamada: {e}")
@@ -108,32 +110,20 @@ def main():
         "192.168.0.75",
     ]
     NUM_SERVERS = len(SERVER_IPS)
-    MATRIX_SIZE = 4096
     
-    np.random.seed(42) 
-    A = np.random.rand(MATRIX_SIZE, MATRIX_SIZE)
-    B = np.random.rand(MATRIX_SIZE, MATRIX_SIZE)
-    
-    client = MatrixClient(SERVER_IPS)
+    A: np.ndarray = read_matrix("matA.txt")
+    B: np.ndarray = read_matrix("matB.txt")
     
     print(f"\nMatrix A: {A.shape}, Matrix B: {B.shape}")
     print(f"Distributing the multiplication in {NUM_SERVERS} servers...\n")
 
-    start_time = time.perf_counter()
-    result_distributed = client.multiply_distributed(A, B)
-    end_time = time.perf_counter()
-    print(f"Distributed multiplication time: {end_time - start_time:.4f} seconds")
+    client = MatrixClient(SERVER_IPS)
+    result_distributed = benchmark("Distributed", A, B, client.multiply_distributed)
+    verify_matrix(A, B, result_distributed)
+    save_matrix(result_distributed, "matC_distributed.txt")
     
-    
-    if result_distributed is not None:
-        print("\n--- Verification with Numpy.dot (Local) ---")
-        result_local = np.dot(A, B)        
-        print(f"Result from distributed multiplication: {result_distributed[0:3,0:3]}")
-        print(f"Result from numpy.dot: {result_local[0:3,0:3]}")
-        is_close = np.allclose(result_distributed, result_local)
-        print(f"The distributed results are close to numpy.dot? {is_close}")
-    else:
-        print("\nThe multiplication could not be completed due to errors in gRPC calls.")
 
 if __name__ == '__main__':
+    print("Running Frontend...")
     main()
+    print("Frontend finished.")
