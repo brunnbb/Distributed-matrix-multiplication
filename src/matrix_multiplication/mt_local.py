@@ -6,7 +6,7 @@ from numba import njit
 from utils import read_matrix, save_matrix, benchmark, verify_matrix, truncate_matrix
 
 @njit()
-def block_multiply_int(A_block: np.ndarray, B_block: np.ndarray) -> np.ndarray:
+def multiply_block(A_block: np.ndarray, B_block: np.ndarray) -> np.ndarray:
     C_block = np.zeros((A_block.shape[0], B_block.shape[1]), dtype=np.float64)
     for i in range(A_block.shape[0]):
         for j in range(B_block.shape[1]):
@@ -25,14 +25,34 @@ def worker(block_indices: tuple[int, int], A_shm_name: str, B_shm_name: str, C_s
     C = np.ndarray((A_shape[0], B_shape[1]), dtype=np.float64, buffer=C_shm.buf) 
 
     i, j = block_indices
-    C_block = np.zeros((block_size, block_size))
+    num_blocks_k = (A_shape[1] + block_size - 1) // block_size
+    
+    # Compute row/col ranges for this block
+    row_start = i * block_size
+    row_end = min((i + 1) * block_size, A_shape[0])
+    col_start = j * block_size
+    col_end = min((j + 1) * block_size, B_shape[1])
+    
+    # Shape of result block
+    out_row = row_end - row_start
+    out_col = col_end - col_start
+    C_block = np.zeros((out_row, out_col), dtype=np.float64)
 
-    for k in range((A_shape[1] + block_size - 1) // block_size):
-        A_block = A[i * block_size:(i + 1) * block_size, k * block_size:(k + 1) * block_size]
-        B_block = B[k * block_size:(k + 1) * block_size, j * block_size:(j + 1) * block_size]
-        C_block += block_multiply_int(A_block, B_block)
+    for k in range(num_blocks_k):
+        a_col_start = k * block_size
+        a_col_end = min((k + 1) * block_size, A_shape[1])
+        
+        # Slices for this iteration
+        A_block = A[row_start:row_end, a_col_start:a_col_end]
+        B_block = B[a_col_start:a_col_end, col_start:col_end]
+        if A_block.size == 0 or B_block.size == 0:
+            continue
+        
+        C_block += multiply_block(A_block, B_block)
 
-    C[i * block_size:(i + 1) * block_size, j * block_size:(j+1) * block_size] = C_block
+    C[row_start:row_end, col_start:col_end] = C_block
+    
+    A_shm.close(); B_shm.close(); C_shm.close()
 
 def block_matrix_multiply(A: np.ndarray, B: np.ndarray, block_size=64, num_cores=1) -> np.ndarray:
     A_shape: tuple[int, int] = A.shape
@@ -64,13 +84,10 @@ def block_matrix_multiply(A: np.ndarray, B: np.ndarray, block_size=64, num_cores
 
     C_result = np.copy(np.ndarray((A_shape[0], B_shape[1]), dtype=np.float64, buffer=C_shm.buf))
 
-    A_shm.close()
-    B_shm.close()
-    C_shm.close()
-    A_shm.unlink()
-    B_shm.unlink()
-    C_shm.unlink()
-
+    # Clean up shared memory
+    A_shm.close(); B_shm.close(); C_shm.close() 
+    A_shm.unlink(); B_shm.unlink(); C_shm.unlink()
+    
     return C_result
 
 def test_multiple_parameters(A_name: str, B_name: str, block_sizes=[128, 256, 512, 1024], core_counts=[2, 4, 6, 8, 10, 12]):
@@ -86,11 +103,10 @@ def test_multiple_parameters(A_name: str, B_name: str, block_sizes=[128, 256, 51
             print(f"[{index:02}|{total:02}]: Block Size: {block_size}, Cores: {num_cores}")
             C = benchmark("Multi-threaded", A, B, block_matrix_multiply, block_size=block_size, num_cores=num_cores)    
             verify_matrix(A, B, C)
-            #C_trunc = truncate_matrix(C, decimals=4.0)
             save_matrix(C, f"matC_mt{index}.txt")         
     print("Benchmark of multiple parameters completed.")
 
 if __name__ == "__main__":
     print("Running...")
-    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256, 512], core_counts=[2,4,6,8,10,12])
+    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256], core_counts=[8, 10])
     print("Done!")
