@@ -1,5 +1,4 @@
 from concurrent import futures
-from math import e
 import time
 
 import grpc
@@ -59,13 +58,12 @@ class MatrixClient:
         if matrix_a.shape[1] != matrix_b.shape[0]:
             raise ValueError("As dimensões das matrizes não são compatíveis para multiplicação.")
 
-        # 1. Divisão da Matriz A
         blocks_a = self._split_matrix(matrix_a)
         
         # Lista para armazenar as chamadas assíncronas
         futures_list = []
         
-        # 2. Distribuição das Tarefas
+        # Distribuição das Tarefas
         with futures.ThreadPoolExecutor(max_workers=self.num_servers) as executor:
             for block_a in blocks_a:
                 stub = self._get_next_stub()
@@ -85,8 +83,7 @@ class MatrixClient:
                 future = stub.Multiply.future(request)
                 futures_list.append(future)
                 
-            # 3. Combinação dos Resultados
-            # Aguarda a conclusão de todos os futures
+            # Aguarda a conclusão de todos os futures para combinar os resultados
             results = []
             for future in futures_list:
                 try:
@@ -96,10 +93,10 @@ class MatrixClient:
                     results.append(result_block)
                 except grpc.RpcError as e:
                     print(f"Erro gRPC em uma chamada: {e}")
-                    # Você pode implementar uma lógica de retry aqui se necessário
+                    # TODO: Lidar com falhas de servidor ou reintentar a chamada
                     return None
             
-            # Concatena os blocos verticalmente (por linhas)
+            # Concatena os blocos verticalmente 
             if results:
                 final_result = np.vstack(results)
                 return final_result

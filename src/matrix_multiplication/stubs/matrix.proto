@@ -1,5 +1,6 @@
 // Command to compile the proto file:
 // python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. matrix.proto
+// Substitute the 'import matrix_pb2 as matrix__pb2' on the grpc one with 'from . import matrix_pb2 as matrix__pb2'
 
 syntax = "proto3";
 
