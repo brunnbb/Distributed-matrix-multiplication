@@ -17,12 +17,13 @@ logging.basicConfig(
     filename=f"{LOG_PATH}time_perf.log"
 )
 
-def read_matrix(name: str) -> np.ndarray:
+def read_matrix(name: str, should_log: bool = False) -> np.ndarray:
     try:
         start = time.perf_counter()
         matrix = np.loadtxt(f"{MATRIX_PATH}{name}", dtype=np.float64)
         end = time.perf_counter()
-        logging.info(f" Time to read matrix {name} from txt: {end - start:.4f} seconds")
+        if should_log:
+            logging.info(f" Time to read matrix {name} from txt: {end - start:.4f} seconds")
         return matrix
     except FileNotFoundError as e:
         logging.error(f" File {name} not found at {MATRIX_PATH}: {e}")
@@ -31,12 +32,13 @@ def read_matrix(name: str) -> np.ndarray:
         logging.error(f" Error reading matrix {name}: {e}")
         raise
     
-def save_matrix(M: np.ndarray, name: str) -> None:
+def save_matrix(M: np.ndarray, name: str, should_log: bool = False) -> None:
     try:
         start = time.perf_counter()
         np.savetxt(f"{MATRIX_PATH}{name}", M, fmt="%.8f")
         end = time.perf_counter()
-        logging.info(f" Time to save matrix {name} as a txt: {end - start:.4f} seconds")
+        if should_log:
+            logging.info(f" Time to save matrix {name} as a txt: {end - start:.4f} seconds")
     except Exception as e:
         logging.error(f" Failed to save matrix {name} to {MATRIX_PATH}: {e}")
         raise
@@ -157,8 +159,8 @@ def test():
     C1 = read_matrix("matC_mt1.txt")
     print("Shape mt1: ", C1.shape)
     
-    C2 = read_matrix("matC_mt2.txt")
-    print("Shape mt2: ", C2.shape)
+    C2 = read_matrix("matC_mt3.txt")
+    print("Shape mt3: ", C2.shape)
     
     C_np = read_matrix("matC_numpy.txt")
     print("Shape np: ", C_np.shape)
@@ -166,14 +168,19 @@ def test():
     C_st = read_matrix("matC_st.txt")
     print("Shape st: ", C_st.shape)
     
-    print("Max difference between matC_mt1 and matC_mt2:", np.max(np.abs(C1 - C2)))
+    C_dt = read_matrix("matC_distributed.txt")
+    print("Shape dt: ", C_dt.shape)
+    
+    print("Max difference between matC_mt1 and matC_mt3:", np.max(np.abs(C1 - C2)))
     print("Max difference between matC_mt1 and matC_numpy:", np.max(np.abs(C1 - C_np)))
     print("Max difference between matC_mt1 and matC_st:", np.max(np.abs(C1 - C_st)))
+    print("Max difference between matC_mt1 and matC_distributed:", np.max(np.abs(C1 - C_dt)))
     
     print(verify_hash("matC_mt1.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
-    print(verify_hash("matC_mt2.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
+    print(verify_hash("matC_mt3.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
     print(verify_hash("matC_numpy.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
     print(verify_hash("matC_st.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
+    print(verify_hash("matC_distributed.txt", "f5531693b6ef5afc011682178243364acb50e57883e6351fb3f73e3b0ae770f7"))
 
     show_matrix_differences(C1, C2, tol=1e-4)
    
