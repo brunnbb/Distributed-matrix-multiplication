@@ -1,5 +1,4 @@
-from math import e, log
-import re
+import json
 import time
 import logging
 import random
@@ -8,7 +7,7 @@ from typing import Callable
 
 import numpy as np
 
-MATRIX_PATH = "src\\matrix_multiplication\\data\\"
+DATA_PATH = "src\\matrix_multiplication\\data\\"
 LOG_PATH = "src\\matrix_multiplication\\logs\\"
 
 logging.basicConfig(
@@ -20,13 +19,13 @@ logging.basicConfig(
 def read_matrix(name: str, should_log: bool = False) -> np.ndarray:
     try:
         start = time.perf_counter()
-        matrix = np.loadtxt(f"{MATRIX_PATH}{name}", dtype=np.float64)
+        matrix = np.loadtxt(f"{DATA_PATH}{name}", dtype=np.float64)
         end = time.perf_counter()
         if should_log:
             logging.info(f" Time to read matrix {name} from txt: {end - start:.4f} seconds")
         return matrix
     except FileNotFoundError as e:
-        logging.error(f" File {name} not found at {MATRIX_PATH}: {e}")
+        logging.error(f" File {name} not found at {DATA_PATH}: {e}")
         raise
     except Exception as e:
         logging.error(f" Error reading matrix {name}: {e}")
@@ -35,12 +34,12 @@ def read_matrix(name: str, should_log: bool = False) -> np.ndarray:
 def save_matrix(M: np.ndarray, name: str, should_log: bool = False) -> None:
     try:
         start = time.perf_counter()
-        np.savetxt(f"{MATRIX_PATH}{name}", M, fmt="%.8f")
+        np.savetxt(f"{DATA_PATH}{name}", M, fmt="%.8f")
         end = time.perf_counter()
         if should_log:
             logging.info(f" Time to save matrix {name} as a txt: {end - start:.4f} seconds")
     except Exception as e:
-        logging.error(f" Failed to save matrix {name} to {MATRIX_PATH}: {e}")
+        logging.error(f" Failed to save matrix {name} to {DATA_PATH}: {e}")
         raise
 
 def truncate_matrix(M: np.ndarray, decimals: int = 4) -> np.ndarray:
@@ -51,36 +50,55 @@ def truncate_matrix(M: np.ndarray, decimals: int = 4) -> np.ndarray:
         logging.error(f" Failed to truncate matrix to {decimals} decimals: {e}")
         raise
     
-def benchmark(mult_type: str, A: np.ndarray, B: np.ndarray, mult: Callable, **kwargs) -> np.ndarray:    
+def benchmark(mult_type: str, A: np.ndarray, B: np.ndarray, mult: Callable, **kwargs) -> tuple[np.ndarray, float]:    
     try:
         clock_start = time.perf_counter()
         C = mult(A, B, **kwargs)
         clock_end = time.perf_counter()
+        elapsed_time = clock_end - clock_start
         
         log_message = (
             f" {mult_type:<15} " 
             f"{str(A.shape):<12} X {str(B.shape):<12} "  
-            f"| Clock time = {clock_end - clock_start:8.4f} seconds "
-            f"| {str(kwargs):<30}" 
+            f"| Time = {elapsed_time:8.4f} seconds "
+            f"| Params: {str(kwargs):<30}" 
         )
         
         logging.info(log_message)    
-        return C
+        return C, elapsed_time
     except Exception as e:
         logging.error(f" Failed to benchmark matrix multiplication type [{mult_type}, {kwargs}]: {e}")
+        raise
+
+def save_stats_json(data: dict) -> None:
+    try:
+        stats = []
+        with open(f"{DATA_PATH}stats.json", "r", encoding="utf8") as f:
+            try:
+                stats = json.load(f)
+            except json.JSONDecodeError:
+                stats = []
+        stats.append(data)
+        with open(f"{DATA_PATH}stats.json", "w", encoding="utf8") as f:
+            json.dump(stats, f, indent=4)
+        logging.info(f" Stats saved to {DATA_PATH}stats.json")
+    except Exception as e:
+        logging.error(f" Failed to save stats to JSON: {e}")
         raise
 
 def verify_matrix(A: np.ndarray, B: np.ndarray, C: np.ndarray) -> None:
     try:
         C1 = np.dot(A, B)
-        print("\n--- Verification ---")
+        print("--- Verification ---")
         print(f"Shape of computed result: {C.shape}, Shape of numpy.dot result: {C1.shape}")
+        max_diff = np.max(np.abs(C - C1))
+        print(f"Maximum error between computed and numpy.dot in memory: {max_diff:.14f}")
         if np.allclose(C, C1, rtol=1e-12, atol=1e-12):
             print("✅ Close match between computed and numpy.dot results")
+            return True
         else:
             print(f"❌ Mismatch detected between computed and numpy.dot results")
-        max_diff = np.max(np.abs(C - C1))
-        print(f"Maximum error between computed and numpy.dot in memory: {max_diff:.14f}\n")
+            return False
     except Exception as e:
         logging.error(f" Failed to verify matrices: {e}")
         raise 
@@ -88,8 +106,8 @@ def verify_matrix(A: np.ndarray, B: np.ndarray, C: np.ndarray) -> None:
 def generate_matrix() -> None:
     try:
         mat_size = int(input("\tType the matrix size: "))
-        with open(f"{MATRIX_PATH}mtest_a.txt", "w", encoding="utf8") as fA, \
-             open(f"{MATRIX_PATH}mtest_b.txt", "w", encoding="utf8") as fB:
+        with open(f"{DATA_PATH}mtest_a.txt", "w", encoding="utf8") as fA, \
+             open(f"{DATA_PATH}mtest_b.txt", "w", encoding="utf8") as fB:
             for lin in range(mat_size):
                 for col in range(mat_size):
                     fA.writelines(str(round(random.uniform(0.15, 1.15), 2)))
@@ -106,13 +124,13 @@ def generate_matrix() -> None:
 
 def verify_hash(file_name: str, expected_hash: str = "") -> bool:
     try:
-        with open(f"{MATRIX_PATH}{file_name}", "rb") as f:
+        with open(f"{DATA_PATH}{file_name}", "rb") as f:
             file_bytes = f.read()
             mat_hash = hashlib.sha256(file_bytes).hexdigest()
         print(f"SHA-256 hash of {file_name}: {mat_hash}")
         return mat_hash == expected_hash
     except FileNotFoundError as e:
-        logging.error(f" File {file_name} not found at {MATRIX_PATH} during hash verification: {e}")
+        logging.error(f" File {file_name} not found at {DATA_PATH} during hash verification: {e}")
         raise
     except Exception as e:
         logging.error(f" Failed to compute hash for {file_name}: {e}")
@@ -139,7 +157,6 @@ def show_matrix_differences(A: np.ndarray, B: np.ndarray, tol: float = 0.0) -> N
         logging.error(f" Failure when comparing matrices: {e}")
         raise
 
-
 def numpy_test():
     try:
         A = read_matrix("matA.txt")
@@ -150,7 +167,7 @@ def numpy_test():
         save_matrix(C, "matC_numpy.txt")
         print("Numpy matrix saved as matC_numpy.txt")
     except Exception as e:
-        logging.error(f" Failed to perform numpy test: {e}")
+        print(f" Failed to perform numpy test: {e}")
         raise
 
 # Robson hash: b1c9746749e75c15c1c6e398bb77618db177333b3e1e7b6c72540800ebbe956f
