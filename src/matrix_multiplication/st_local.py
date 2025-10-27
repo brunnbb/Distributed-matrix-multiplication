@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 
-from utils import read_matrix, save_matrix, benchmark, verify_matrix
+from utils import read_matrix, save_matrix, benchmark, verify_matrix, save_stats_json
 
 @njit()
 def mult(A: np.ndarray, B: np.ndarray) -> np.ndarray:
@@ -15,9 +15,16 @@ def mult(A: np.ndarray, B: np.ndarray) -> np.ndarray:
 def main():
     A: np.ndarray = read_matrix("matA.txt")
     B: np.ndarray = read_matrix("matB.txt")
-    C: np.ndarray = benchmark("Single-threaded", A, B, mult)
+    C, elapsed_time = benchmark("Single-threaded", A, B, mult)
     print("Benchmarking complete.")    
-    verify_matrix(A, B, C)
+    if verify_matrix(A, B, C):
+        info = {
+            "Linear":{
+                "time_seconds": elapsed_time,
+                "num_cores": 1
+            }
+        }
+        save_stats_json(info)
     save_matrix(C, "matC_st.txt")
 
 if __name__ == "__main__":
