@@ -101,10 +101,10 @@ def test_multiple_parameters(A_name: str, B_name: str, block_sizes=[128, 256, 51
         for num_cores in core_counts:
             index += 1
             print(f"\n[{index:02}|{total:02}]: Block Size: {block_size}, Cores: {num_cores}")
-            C, elapsed_time = benchmark("Multi-threaded", A, B, block_matrix_multiply, block_size=block_size, num_cores=num_cores)    
+            C, elapsed_time = benchmark("Blocked local", A, B, block_matrix_multiply, block_size=block_size, num_cores=num_cores)    
             if verify_matrix(A, B, C):
                 info = {
-                    "Multiprocess":{
+                    "Blocked local":{
                         "time_seconds": elapsed_time,
                         "num_cores": num_cores,
                         "block_size": block_size
@@ -116,5 +116,5 @@ def test_multiple_parameters(A_name: str, B_name: str, block_sizes=[128, 256, 51
 
 if __name__ == "__main__":
     print("Running...")
-    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256], core_counts=[10])
+    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256, 512], core_counts=[1, 2])
     print("Done!")
