@@ -8,7 +8,7 @@ import stubs.matrix_pb2 as matrix_pb2
 import stubs.matrix_pb2_grpc as matrix_pb2_grpc
 from mt_local import block_matrix_multiply
 
-MAX_MESSAGE_LENGTH = 280 * 1024 * 1024
+MAX_MESSAGE_LENGTH = 140 * 1024 * 1024
 
 class MatrixBackend(matrix_pb2_grpc.MatrixServiceServicer):
 
@@ -16,15 +16,19 @@ class MatrixBackend(matrix_pb2_grpc.MatrixServiceServicer):
         # Reconstruct matrices from bytes
         A = np.frombuffer(request.matrix_a, dtype=np.float64).reshape((request.rows_a, request.cols_a))
         B = np.frombuffer(request.matrix_b, dtype=np.float64).reshape((request.rows_b, request.cols_b))
+        num_cores = request.num_cores
+        block_size = request.block_size
 
         print(f"Received matrices for multiplication: A{A.shape} x B{B.shape}")
+        print(f"Using {num_cores} cores with block size {block_size}...")
 
         # Perform matrix multiplication
-        time_start = time.perf_counter()
-        result = block_matrix_multiply(A, B, block_size=256, num_cores=10)
+        start_time = time.perf_counter()
+        result = block_matrix_multiply(A, B, block_size=block_size, num_cores=num_cores)
         end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
         
-        print(f"Done in {end_time - time_start:.4f} seconds. Result shape: {result.shape}")
+        print(f"Done in {elapsed_time:.4f} seconds. Result shape: {result.shape}")
         
         # Return the result as a flattened array
         return matrix_pb2.MatrixMultiplyResponse(

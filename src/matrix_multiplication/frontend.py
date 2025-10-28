@@ -1,129 +1,84 @@
 from concurrent import futures
-import time
 
 import grpc
 import numpy as np
 
 import stubs.matrix_pb2 as matrix_pb2
 import stubs.matrix_pb2_grpc as matrix_pb2_grpc
+from utils import read_matrix, save_matrix, verify_matrix, benchmark
 
-from utils import read_matrix, save_matrix, benchmark, verify_matrix, truncate_matrix
-
-MAX_MESSAGE_LENGTH = 280 * 1024 * 1024
+MAX_MESSAGE_LENGTH = 140 * 1024 * 1024
 
 class MatrixClient:
-
-    def __init__(self, server_ips, port='50051'):
-        if not server_ips:
-            raise ValueError("A lista de IPs dos servidores não pode estar vazia.")    
-        self.servers = [f"{ip}:{port}" for ip in server_ips]
-        self.num_servers = len(self.servers)
-        self.stubs = []
-        for server_address in self.servers:
-            channel = grpc.insecure_channel(
-                server_address, 
-                options=[
-                    ('grpc.max_receive_message_length', MAX_MESSAGE_LENGTH),
-                    ('grpc.max_send_message_length', MAX_MESSAGE_LENGTH),
-                ]
-            )
-            stub = matrix_pb2_grpc.MatrixServiceStub(channel)
-            self.stubs.append(stub)
-            print(f"Canal e Stub criados para: {server_address}")
-        self.server_index = 0
-
-    def _get_next_stub(self):
-        stub = self.stubs[self.server_index]
-        self.server_index = (self.server_index + 1) % self.num_servers
-        return stub
-
-    def _split_matrix(self, matrix_a):
-        """
-        Divide a Matriz A por linhas para distribuição.
-        A Matriz B é enviada inteira para todos (assumindo que B é menor 
-        ou a divisão ideal é só nas linhas de A para a multiplicação M x N).
-        """
-        rows_a = matrix_a.shape[0]
-        rows_per_server = rows_a // self.num_servers
-        remainder_rows = rows_a % self.num_servers
-        
-        blocks_a = []
-        start_row = 0
-        for i in range(self.num_servers):
-            # Distribui as linhas restantes uniformemente
-            end_row = start_row + rows_per_server + (1 if i < remainder_rows else 0)
-            blocks_a.append(matrix_a[start_row:end_row, :])
-            start_row = end_row
-        return blocks_a
-
-    def multiply_distributed(self, matrix_a, matrix_b):
-        if matrix_a.shape[1] != matrix_b.shape[0]:
-            raise ValueError("As dimensões das matrizes não são compatíveis para multiplicação.")
-
-        blocks_a = self._split_matrix(matrix_a)
-        
-        # Lista para armazenar as chamadas assíncronas
-        futures_list = []
-        
-        # Distribuição das Tarefas
-        with futures.ThreadPoolExecutor(max_workers=self.num_servers) as executor:
-            for block_a in blocks_a:
-                stub = self._get_next_stub()
-                
-                # Prepara a mensagem gRPC
-                request = matrix_pb2.MatrixMultiplyRequest(
-                    matrix_a=block_a.tobytes(),
-                    rows_a=block_a.shape[0],
-                    cols_a=block_a.shape[1],
-                    matrix_b=matrix_b.tobytes(),
-                    rows_b=matrix_b.shape[0],
-                    cols_b=matrix_b.shape[1]
+    def __init__(self, server_ips, port="50051"):
+        self.stubs = [
+            matrix_pb2_grpc.MatrixServiceStub(
+                grpc.insecure_channel(
+                    f"{ip}:{port}",
+                    options=[
+                        ("grpc.max_send_message_length", MAX_MESSAGE_LENGTH),
+                        ("grpc.max_receive_message_length", MAX_MESSAGE_LENGTH),
+                    ]
                 )
-                
-                # Executa a chamada gRPC de forma assíncrona
-                # O .future() permite que a chamada RPC não bloqueie o ThreadPoolExecutor
-                future = stub.Multiply.future(request)
-                futures_list.append(future)
-                
-            # Aguarda a conclusão de todos os futures para combinar os resultados
-            results = []
-            for future in futures_list:
-                try:
-                    response = future.result()
-                    # Reconstrói o bloco de resultado em um array numpy
-                    result_block = np.frombuffer(response.result, dtype=np.float64).reshape((response.rows, response.cols))
-                    results.append(result_block)
-                except grpc.RpcError as e:
-                    print(f"Erro gRPC em uma chamada: {e}")
-                    # TODO: Lidar com falhas de servidor ou reintentar a chamada
-                    return None
-            
-            # Concatena os blocos verticalmente 
-            if results:
-                final_result = np.vstack(results)
-                return final_result
-            else:
-                return None
+            ) for ip in server_ips
+        ]
+        self.idx = 0
+
+    def _next_stub(self):
+        stub = self.stubs[self.idx]
+        self.idx = (self.idx + 1) % len(self.stubs)
+        return stub
+        
+    def multiply_distributed(self, A, B, block_size=2048, num_servers=1, back_block_size=128, back_num_cores=3):
+        assert A.shape == B.shape, "Must multiply square matrices of the same size"
+        
+        A_blocks = [A[i:i+block_size, :] for i in range(0, A.shape[0], block_size)]
+        B_blocks = [B[:, j:j+block_size] for j in range(0, B.shape[1], block_size)]
+
+        futures_list = []
+        with futures.ThreadPoolExecutor(max_workers=len(self.stubs)) as executor:
+            for i, A_block in enumerate(A_blocks):
+                for j, B_block in enumerate(B_blocks):
+                    stub = self._next_stub()
+                    req = matrix_pb2.MatrixMultiplyRequest(
+                        matrix_a=A_block.tobytes(),
+                        matrix_b=B_block.tobytes(),
+                        rows_a=A_block.shape[0],
+                        cols_a=A_block.shape[1],
+                        rows_b=B_block.shape[0],
+                        cols_b=B_block.shape[1],
+                        num_cores=back_num_cores,
+                        block_size=back_block_size
+                    )
+                    future = stub.Multiply.future(req)
+                    futures_list.append(((i, j), future))
+
+            partials = {}
+            for (i, j), f in futures_list:
+                resp = f.result()
+                C_block = np.frombuffer(resp.result, dtype=np.float64).reshape((resp.rows, resp.cols))
+                partials[(i, j)] = C_block
+
+        row_blocks = []
+        for i in range(len(A_blocks)):
+            row_blocks.append(np.hstack([partials[(i, j)] for j in range(len(B_blocks))]))
+        return np.vstack(row_blocks)
 
 def main():
-    SERVER_IPS = [
-        "192.168.0.75",
-    ]
-    NUM_SERVERS = len(SERVER_IPS)
+    SERVER_IPS = ["10.151.55.67",]
+    A = read_matrix("matA.txt")
+    B = read_matrix("matB.txt")
+    print("Matrices loaded.")
     
-    A: np.ndarray = read_matrix("matA.txt")
-    B: np.ndarray = read_matrix("matB.txt")
+    print(f"Matrix A: {A.shape}, Matrix B: {B.shape}")
+    print(f"Distributing the multiplication in {len(SERVER_IPS)} servers...\n")
     
-    print(f"\nMatrix A: {A.shape}, Matrix B: {B.shape}")
-    print(f"Distributing the multiplication in {NUM_SERVERS} servers...\n")
-
     client = MatrixClient(SERVER_IPS)
-    result_distributed = benchmark("Distributed", A, B, client.multiply_distributed)
-    verify_matrix(A, B, result_distributed)
-    save_matrix(result_distributed, "matC_distributed.txt")
-    
+    C, elapsed = benchmark("Distributed", A, B, client.multiply_distributed, block_size=2048, num_servers=1, back_block_size=128, back_num_cores=3)
+    print(f" Done in {elapsed:.4f}s")
+    verify_matrix(A, B, C)
+    save_matrix(C, "matC_distributed.txt")
 
-if __name__ == '__main__':
-    print("Running Frontend...")
+if __name__ == "__main__":
+    print("\nStarting distributed matrix multiplication client...")
     main()
-    print("Frontend finished.")

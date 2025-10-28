@@ -19,11 +19,13 @@ message MatrixMultiplyRequest {
     bytes matrix_b = 4; 
     int32 rows_b = 5;            
     int32 cols_b = 6;         
+    int32 num_cores = 7;
+    int32 block_size = 8;
 }
 
 // Response from the backend after multiplication
 message MatrixMultiplyResponse {
     bytes result = 1;  
     int32 rows = 2;              
-    int32 cols = 3;             
+    int32 cols = 3;            
 }
