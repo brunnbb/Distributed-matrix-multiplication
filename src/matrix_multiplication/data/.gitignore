@@ -2,3 +2,4 @@
 *
 # Except for the .gitignore file itself
 !.gitignore
+!stats.json

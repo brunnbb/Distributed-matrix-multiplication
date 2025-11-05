@@ -21,7 +21,8 @@ def main():
         info = {
             "Linear":{
                 "time_seconds": elapsed_time,
-                "num_cores": 1
+                "num_cores": 1,
+                "block_size": 4096
             }
         }
         save_stats_json(info)

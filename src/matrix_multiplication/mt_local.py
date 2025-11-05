@@ -45,6 +45,7 @@ def worker(block_indices: tuple[int, int], A_shm_name: str, B_shm_name: str, C_s
         # Slices for this iteration
         A_block = A[row_start:row_end, a_col_start:a_col_end]
         B_block = B[a_col_start:a_col_end, col_start:col_end]
+        
         if A_block.size == 0 or B_block.size == 0:
             continue
         
@@ -111,10 +112,11 @@ def test_multiple_parameters(A_name: str, B_name: str, block_sizes=[128, 256, 51
                     }
                 }
                 save_stats_json(info)
-            save_matrix(C, f"matC_mt{index}.txt")         
+            if num_cores == 12:    
+                save_matrix(C, f"matC_mt{index}.txt")         
     print("\nBenchmark of multiple parameters completed.")
 
 if __name__ == "__main__":
     print("Running...")
-    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256, 512], core_counts=[1, 2])
+    test_multiple_parameters(A_name="matA.txt", B_name="matB.txt", block_sizes=[128, 256, 512], core_counts=[1, 2, 4, 6, 8, 10, 12])
     print("Done!")

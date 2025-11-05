@@ -13,14 +13,14 @@ service MatrixService {
 
 // Request for multiplying two matrices
 message MatrixMultiplyRequest {
-    bytes matrix_a = 1; 
-    int32 rows_a = 2;           
-    int32 cols_a = 3;            
-    bytes matrix_b = 4; 
-    int32 rows_b = 5;            
-    int32 cols_b = 6;         
-    int32 num_cores = 7;
-    int32 block_size = 8;
+    bytes matrix_a = 1;
+    int32 rows_a = 2;
+    int32 cols_a = 3;
+    bytes matrix_b = 4;
+    int32 rows_b = 5;
+    int32 cols_b = 6;
+    int32 block_size = 7;
+    bool compressed = 8;
 }
 
 // Response from the backend after multiplication
