@@ -71,7 +71,7 @@ def _worker_loop():
             A = np.frombuffer(a_bytes, dtype=np.float64).reshape((req.rows_a, req.cols_a))
             B = np.frombuffer(b_bytes, dtype=np.float64).reshape((req.rows_b, req.cols_b))
 
-            num_cores = os.cpu_count() or 1
+            num_cores = req.num_cores if req.num_cores < os.cpu_count() else os.cpu_count()
             block_size = getattr(req, "block_size", 128)
 
             print(f"[worker] Processing job: A{A.shape} x B{B.shape}, "
@@ -112,8 +112,7 @@ def serve(port="50051"):
     matrix_pb2_grpc.add_MatrixServiceServicer_to_server(MatrixBackend(), server)
     server.add_insecure_port(f"[::]:{port}")
     server.start()
-    print(f"Backend running on port {port}")
-    print(f"Worker processes one job at a time using all {os.cpu_count()} cores.")
+    print(f"Backend running on port {port}...")
     server.wait_for_termination()
 
 

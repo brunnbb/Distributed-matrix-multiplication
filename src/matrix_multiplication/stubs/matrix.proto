@@ -20,7 +20,8 @@ message MatrixMultiplyRequest {
     int32 rows_b = 5;
     int32 cols_b = 6;
     int32 block_size = 7;
-    bool compressed = 8;
+    int32 num_cores = 8;
+    bool compressed = 9;
 }
 
 // Response from the backend after multiplication

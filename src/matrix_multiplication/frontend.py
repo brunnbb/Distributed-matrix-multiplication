@@ -9,9 +9,11 @@ import stubs.matrix_pb2_grpc as matrix_pb2_grpc
 from utils import read_matrix, save_matrix, verify_matrix, benchmark, save_stats_json
 
 MAX_MESSAGE_LENGTH = 140 * 1024 * 1024
-SERVER_IPS = ["192.168.0.75","192.168.0.65"]
+SERVER_IPS = ["192.168.0.75"]
 BLOCK_SIZE = 2048
 BACKEND_BLOCK_SIZE = 128
+NUM_CORES = 12
+COMPRESSION = True
 
 
 class MatrixClient:
@@ -29,12 +31,10 @@ class MatrixClient:
         ]
         self.idx = 0
 
-    def _next_stub(self):
-        stub = self.stubs[self.idx]
-        self.idx = (self.idx + 1) % len(self.stubs)
-        return stub
+    def _next_stub(self, i, j):
+        return self.stubs[(i + j) % len(self.stubs)]
 
-    def multiply_distributed(self, A, B, block_size=2048, num_servers=1, back_block_size=128, compression=True):
+    def multiply_distributed(self, A, B, block_size=1024, num_servers=1, back_block_size=128, num_cores=1, compression=True):
         """
         Split A and B into blocks, send each sub-task to a backend server.
         The backend will queue and process one request at a time using all cores.
@@ -46,7 +46,8 @@ class MatrixClient:
         with futures.ThreadPoolExecutor(max_workers=len(self.stubs)) as executor:
             for i, A_block in enumerate(A_blocks):
                 for j, B_block in enumerate(B_blocks):
-                    stub = self._next_stub()
+                    # Next stub
+                    stub = self._next_stub(i, j)
 
                     # Optionally compress large blocks to reduce transfer size
                     if compression:
@@ -64,7 +65,8 @@ class MatrixClient:
                         rows_b=B_block.shape[0],
                         cols_b=B_block.shape[1],
                         block_size=back_block_size,
-                        compressed=compression 
+                        num_cores = num_cores,
+                        compressed=compression  
                     )
 
                     future = stub.Multiply.future(req)
@@ -99,7 +101,9 @@ def main():
         client.multiply_distributed,
         block_size=BLOCK_SIZE,
         num_servers=num_servers,
-        back_block_size=BACKEND_BLOCK_SIZE
+        back_block_size=BACKEND_BLOCK_SIZE,
+        num_cores=NUM_CORES,
+        compression=COMPRESSION
     )
 
     print(f"Done in {elapsed_time:.4f}s")
@@ -110,7 +114,10 @@ def main():
                 "time_seconds": elapsed_time,
                 "num_servers": num_servers,
                 "block_size": BLOCK_SIZE,
-                "backend_block_size": BACKEND_BLOCK_SIZE
+                "backend_block_size": BACKEND_BLOCK_SIZE,
+                "num_cores": NUM_CORES,
+                "compression": COMPRESSION
+                
             }
         }
         save_stats_json(info)

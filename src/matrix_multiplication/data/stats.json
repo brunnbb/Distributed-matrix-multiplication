@@ -155,60 +155,42 @@
     },
     {
         "Distributed": {
-            "time_seconds": 33.28383949998533,
+            "time_seconds": 48.80971009994391,
             "num_servers": 1,
             "block_size": 2048,
-            "num_tasks": 4,
-            "tasks_per_server": 4,
             "backend_block_size": 128,
-            "backend_total_cores": 12,
-            "backend_num_cores_per_task": 3
+            "num_cores": 6,
+            "compression": true
         }
     },
     {
         "Distributed": {
-            "time_seconds": 66.53887539997231,
+            "time_seconds": 46.352575200027786,
             "num_servers": 1,
-            "block_size": 1024,
-            "num_tasks": 16,
-            "tasks_per_server": 16,
+            "block_size": 2048,
             "backend_block_size": 128,
-            "backend_total_cores": 12,
-            "backend_num_cores_per_task": 1
+            "num_cores": 8,
+            "compression": true
         }
     },
     {
         "Distributed": {
-            "time_seconds": 46.737845700001344,
+            "time_seconds": 45.972552399965934,
             "num_servers": 1,
             "block_size": 2048,
-            "num_tasks": 4,
-            "tasks_per_server": 4,
-            "backend_block_size": 128
+            "backend_block_size": 128,
+            "num_cores": 10,
+            "compression": true
         }
     },
     {
         "Distributed": {
-            "time_seconds": 50.00212930003181,
+            "time_seconds": 48.23539140005596,
             "num_servers": 1,
             "block_size": 2048,
-            "backend_block_size": 128
-        }
-    },
-    {
-        "Distributed": {
-            "time_seconds": 49.002388300024904,
-            "num_servers": 1,
-            "block_size": 2048,
-            "backend_block_size": 128
-        }
-    },
-    {
-        "Distributed": {
-            "time_seconds": 46.56976119999308,
-            "num_servers": 1,
-            "block_size": 2048,
-            "backend_block_size": 128
+            "backend_block_size": 128,
+            "num_cores": 12,
+            "compression": true
         }
     }
 ]
